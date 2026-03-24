@@ -233,12 +233,11 @@
                     <template v-for="(att, i) in parseAttachments(msg)" :key="i">
                       <div v-if="isImageAttachment(att)" class="mb-1">
                         <img
-                          v-if="getAttachmentUrl(att)"
-                          :src="authImageUrls.get(getAttachmentUrl(att)) || ''"
+                          v-if="authImageCache[getAttachmentUrl(att)]"
+                          :src="authImageCache[getAttachmentUrl(att)]"
                           style="max-width: 200px; max-height: 200px; border-radius: 8px; cursor: pointer;"
                           @click="openUrl(getAttachmentUrl(att))"
                           @error="onImageError($event, att)"
-                          :ref="(_el: any) => loadAuthImage(getAttachmentUrl(att))"
                         />
                         <v-chip v-else size="x-small" variant="tonal" color="grey">
                           <v-icon start size="12">mdi-image</v-icon>
@@ -340,7 +339,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useConversationStore, type Message } from '../stores/conversations'
 import { useChannelStore } from '../stores/channels'
@@ -655,16 +654,16 @@ function getAttachmentUrl(att: any): string {
 }
 
 // Auth image loading: fetch with JWT header, create blob URL
-const authImageUrls = reactive(new Map<string, string>())
+const authImageCache = ref<Record<string, string>>({})
 
 async function loadAuthImage(url: string) {
-  if (!url || authImageUrls.has(url)) return
+  if (!url || authImageCache.value[url]) return
   // For external URLs (not /api/), load directly
   if (!url.startsWith('/api/')) {
-    authImageUrls.set(url, url)
+    authImageCache.value[url] = url
     return
   }
-  authImageUrls.set(url, '') // placeholder to prevent duplicate fetches
+  authImageCache.value[url] = '' // placeholder to prevent duplicate fetches
   try {
     const token = localStorage.getItem('cqa_access_token')
     const resp = await fetch(url, {
@@ -672,15 +671,30 @@ async function loadAuthImage(url: string) {
     })
     if (resp.ok) {
       const blob = await resp.blob()
-      authImageUrls.set(url, URL.createObjectURL(blob))
+      authImageCache.value[url] = URL.createObjectURL(blob)
     }
   } catch { /* ignore */ }
 }
 
+// Load auth images when messages change
+watch(() => conversationStore.messages, () => {
+  for (const msg of conversationStore.messages) {
+    if (msg.attachments) {
+      const atts = typeof msg.attachments === 'string' ? JSON.parse(msg.attachments) : msg.attachments
+      for (const att of atts) {
+        if (isImageAttachment(att)) {
+          const url = getAttachmentUrl(att)
+          if (url) loadAuthImage(url)
+        }
+      }
+    }
+  }
+}, { immediate: true })
+
 onUnmounted(() => {
   // Cleanup blob URLs to prevent memory leaks
-  for (const blobUrl of authImageUrls.values()) {
-    if (blobUrl.startsWith('blob:')) URL.revokeObjectURL(blobUrl)
+  for (const blobUrl of Object.values(authImageCache.value)) {
+    if (blobUrl && blobUrl.startsWith('blob:')) URL.revokeObjectURL(blobUrl)
   }
 })
 
