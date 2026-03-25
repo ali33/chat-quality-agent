@@ -692,7 +692,7 @@ func FacebookOAuthCallback(c *gin.Context) {
 	}
 
 	// Step 3: Get user's pages and find the page access token
-	pageID, pageToken, pageName, err := getFBPageToken(longLivedToken)
+	pageID, pageToken, pageName, err := getFBPageToken(longLivedToken, "")
 	if err != nil {
 		log.Printf("[error] facebook get page token for channel %s: %v", channelID, err)
 		redirectWithError(c, tenantID, "Page token retrieval failed")
