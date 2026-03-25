@@ -307,7 +307,8 @@ func TriggerJob(c *gin.Context) {
 		}()
 		cfg, _ := config.Load()
 		analyzer := engine.NewAnalyzer(cfg)
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
 		var err error
 		switch mode {
 		case "unanalyzed":
