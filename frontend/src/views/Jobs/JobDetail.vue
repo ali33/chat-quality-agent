@@ -1005,11 +1005,14 @@ onMounted(async () => {
 })
 
 async function pollUntilComplete() {
-  while (true) {
+  let pollAttempts = 0
+  const maxPollAttempts = 120 // 6 minutes max for AI jobs
+  while (pollAttempts < maxPollAttempts) {
     await new Promise(r => setTimeout(r, 3000))
     await jobStore.fetchJobRuns(tenantId.value, jobId.value)
     const latestRun = jobStore.jobRuns[0]
     if (!latestRun || latestRun.status !== 'running') break
+    pollAttempts++
   }
   await jobStore.fetchAllJobResults(tenantId.value, jobId.value)
   job.value = await jobStore.fetchJob(tenantId.value, jobId.value)
