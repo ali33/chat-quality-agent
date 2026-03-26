@@ -82,7 +82,12 @@ func SaveAISettings(c *gin.Context) {
 	}
 
 	// Save base URL (plain, optional — empty string clears it)
-	upsertSetting(tenantID, "ai_base_url", req.BaseURL, nil)
+	if req.BaseURL != "" {
+		upsertSetting(tenantID, "ai_base_url", req.BaseURL, nil)
+	} else {
+		// Explicitly clear: delete the setting if empty
+		db.DB.Where("tenant_id = ? AND setting_key = ?", tenantID, "ai_base_url").Delete(&models.AppSetting{})
+	}
 
 	// Save API key (encrypted)
 	encrypted, err := pkg.Encrypt([]byte(req.APIKey), cfg.EncryptionKey)
