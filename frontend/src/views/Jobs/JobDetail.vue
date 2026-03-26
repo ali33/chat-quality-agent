@@ -4,28 +4,30 @@
     <div class="d-flex align-center mb-4">
       <v-btn icon="mdi-arrow-left" variant="text" size="small" :to="`/${tenantId}/jobs`" />
       <h1 class="text-subtitle-1 text-md-h5 font-weight-bold ml-1 flex-grow-1" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ job?.name || '...' }}</h1>
-      <v-tooltip v-if="!mdAndUp" text="Sửa" location="bottom">
-        <template #activator="{ props }">
-          <v-btn v-bind="props" variant="outlined" icon="mdi-pencil" size="small" :to="`/${tenantId}/jobs/${jobId}/edit`" class="ml-1" />
-        </template>
-      </v-tooltip>
-      <v-btn v-else variant="outlined" prepend-icon="mdi-pencil" size="small" :to="`/${tenantId}/jobs/${jobId}/edit`" class="ml-2">{{ $t('edit') }}</v-btn>
+      <template v-if="authStore.canEdit('jobs')">
+        <v-tooltip v-if="!mdAndUp" text="Sửa" location="bottom">
+          <template #activator="{ props }">
+            <v-btn v-bind="props" variant="outlined" icon="mdi-pencil" size="small" :to="`/${tenantId}/jobs/${jobId}/edit`" class="ml-1" />
+          </template>
+        </v-tooltip>
+        <v-btn v-else variant="outlined" prepend-icon="mdi-pencil" size="small" :to="`/${tenantId}/jobs/${jobId}/edit`" class="ml-2">{{ $t('edit') }}</v-btn>
 
-      <v-tooltip v-if="!mdAndUp" text="Chạy thử" location="bottom">
-        <template #activator="{ props }">
-          <v-btn v-bind="props" variant="outlined" color="primary" icon="mdi-test-tube" size="small" :loading="testRunning" class="ml-1" @click="testRun" />
-        </template>
-      </v-tooltip>
-      <v-btn v-else variant="outlined" color="primary" prepend-icon="mdi-test-tube" size="small" :loading="testRunning" class="ml-2" @click="testRun">Chạy thử (3 hội thoại)</v-btn>
+        <v-tooltip v-if="!mdAndUp" text="Chạy thử" location="bottom">
+          <template #activator="{ props }">
+            <v-btn v-bind="props" variant="outlined" color="primary" icon="mdi-test-tube" size="small" :loading="testRunning" class="ml-1" @click="testRun" />
+          </template>
+        </v-tooltip>
+        <v-btn v-else variant="outlined" color="primary" prepend-icon="mdi-test-tube" size="small" :loading="testRunning" class="ml-2" @click="testRun">Chạy thử (3 hội thoại)</v-btn>
 
-      <v-tooltip v-if="!mdAndUp" text="Chạy ngay" location="bottom">
-        <template #activator="{ props }">
-          <v-btn v-bind="props" color="primary" icon="mdi-play" size="small" :loading="triggerRunning" class="ml-1" @click="openRunDialog" />
-        </template>
-      </v-tooltip>
-      <v-btn v-else color="primary" prepend-icon="mdi-play" size="small" :loading="triggerRunning" class="ml-2" @click="openRunDialog">{{ $t('run_now') }}</v-btn>
+        <v-tooltip v-if="!mdAndUp" text="Chạy ngay" location="bottom">
+          <template #activator="{ props }">
+            <v-btn v-bind="props" color="primary" icon="mdi-play" size="small" :loading="triggerRunning" class="ml-1" @click="openRunDialog" />
+          </template>
+        </v-tooltip>
+        <v-btn v-else color="primary" prepend-icon="mdi-play" size="small" :loading="triggerRunning" class="ml-2" @click="openRunDialog">{{ $t('run_now') }}</v-btn>
 
-      <v-btn v-if="isJobRunning" color="error" variant="outlined" prepend-icon="mdi-stop" size="small" class="ml-2" :loading="cancelling" @click="cancelJob">{{ mdAndUp ? 'Dừng' : '' }}</v-btn>
+        <v-btn v-if="isJobRunning" color="error" variant="outlined" prepend-icon="mdi-stop" size="small" class="ml-2" :loading="cancelling" @click="cancelJob">{{ mdAndUp ? 'Dừng' : '' }}</v-btn>
+      </template>
     </div>
 
     <!-- Run options dialog -->
@@ -727,6 +729,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { useJobStore, type JobResult } from '../../stores/jobs'
+import { useAuthStore } from '../../stores/auth'
 import api from '../../api'
 import { Line } from 'vue-chartjs'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Filler, Legend } from 'chart.js'
@@ -736,6 +739,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineEleme
 const route = useRoute()
 const { mdAndUp } = useDisplay()
 const jobStore = useJobStore()
+const authStore = useAuthStore()
 const tenantId = computed(() => route.params.tenantId as string)
 const jobId = computed(() => route.params.jobId as string)
 const job = ref<Record<string, any> | null>(null)

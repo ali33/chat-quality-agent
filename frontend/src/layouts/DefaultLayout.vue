@@ -278,6 +278,7 @@ const currentTenantInitial = computed(() => {
 watch(tenantId, async (id) => {
   if (id) {
     currentTenantId.value = id
+    authStore.fetchTenantPermissions(id)
     if (!tenants.value.length) {
       try {
         const { data } = await api.get('/tenants')
@@ -388,18 +389,19 @@ watch(profileDialog, (val) => {
 const navItems = computed(() => {
   if (!tenantId.value) return []
   const base = `/${tenantId.value}`
-  return [
-    { icon: 'mdi-view-dashboard', label: 'nav_home', route: base, exact: true },
-    { icon: 'mdi-message-text', label: 'nav_channels', route: `${base}/channels`, exact: false },
-    { icon: 'mdi-forum', label: 'nav_messages', route: `${base}/messages`, exact: false },
-    { icon: 'mdi-robot', label: 'nav_jobs', route: `${base}/jobs`, exact: false },
-    { icon: 'mdi-text-box-search', label: 'activity_logs', route: `${base}/activity-logs`, exact: false },
-    { icon: 'mdi-currency-usd', label: 'cost_logs', route: `${base}/cost-logs`, exact: false },
-    { icon: 'mdi-bell-ring', label: 'nav_notification_logs', route: `${base}/notifications`, exact: false },
-    { icon: 'mdi-connection', label: 'nav_mcp', route: `${base}/mcp`, exact: false },
-    { icon: 'mdi-account-group', label: 'nav_users', route: `${base}/users`, exact: false },
-    { icon: 'mdi-cog', label: 'nav_settings', route: `${base}/settings`, exact: false },
+  const all = [
+    { icon: 'mdi-view-dashboard', label: 'nav_home', route: base, exact: true, perm: null },
+    { icon: 'mdi-message-text', label: 'nav_channels', route: `${base}/channels`, exact: false, perm: 'channels' },
+    { icon: 'mdi-forum', label: 'nav_messages', route: `${base}/messages`, exact: false, perm: 'messages' },
+    { icon: 'mdi-robot', label: 'nav_jobs', route: `${base}/jobs`, exact: false, perm: 'jobs' },
+    { icon: 'mdi-text-box-search', label: 'activity_logs', route: `${base}/activity-logs`, exact: false, perm: 'settings' },
+    { icon: 'mdi-currency-usd', label: 'cost_logs', route: `${base}/cost-logs`, exact: false, perm: 'settings' },
+    { icon: 'mdi-bell-ring', label: 'nav_notification_logs', route: `${base}/notifications`, exact: false, perm: 'jobs' },
+    { icon: 'mdi-connection', label: 'nav_mcp', route: `${base}/mcp`, exact: false, perm: 'settings' },
+    { icon: 'mdi-account-group', label: 'nav_users', route: `${base}/users`, exact: false, perm: 'settings' },
+    { icon: 'mdi-cog', label: 'nav_settings', route: `${base}/settings`, exact: false, perm: 'settings' },
   ]
+  return all.filter(item => !item.perm || authStore.canView(item.perm))
 })
 
 const userInitials = computed(() => {

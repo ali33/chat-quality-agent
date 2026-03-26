@@ -2,7 +2,7 @@
   <div>
     <div class="d-flex align-center justify-space-between mb-6">
       <h1 class="text-h5 font-weight-bold">{{ $t('channels') }}</h1>
-      <v-btn color="primary" prepend-icon="mdi-plus" @click="showDialog = true">
+      <v-btn v-if="authStore.canEdit('channels')" color="primary" prepend-icon="mdi-plus" @click="showDialog = true">
         {{ $t('connect_channel') }}
       </v-btn>
     </div>
@@ -193,12 +193,14 @@ import { ref, computed, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useChannelStore } from '../stores/channels'
+import { useAuthStore } from '../stores/auth'
 import api from '../api'
 
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const channelStore = useChannelStore()
+const authStore = useAuthStore()
 const tenantId = computed(() => route.params.tenantId as string)
 
 const showDialog = ref(false)

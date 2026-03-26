@@ -5,17 +5,19 @@
       <v-btn icon="mdi-arrow-left" variant="text" size="small" @click="router.back()" class="mr-2" />
       <h1 class="text-h5 font-weight-bold">{{ channel.name }}</h1>
       <v-spacer />
-      <v-btn variant="outlined" prepend-icon="mdi-pencil" size="small" @click="editDialog = true">{{ $t('edit') }}</v-btn>
-      <v-btn color="primary" prepend-icon="mdi-sync" size="small" :loading="syncing" @click="doSync">
-        {{ $t('sync_now') || 'Dong bo ngay' }}
-      </v-btn>
-      <v-btn variant="outlined" prepend-icon="mdi-connection" size="small" :loading="testing" @click="doTest">
-        Kiểm tra kết nối
-      </v-btn>
-      <v-btn color="warning" variant="outlined" prepend-icon="mdi-delete-sweep" size="small" @click="confirmPurge = true">
-        Xóa cuộc chat
-      </v-btn>
-      <v-btn color="error" variant="outlined" prepend-icon="mdi-delete" size="small" @click="confirmDelete = true">{{ $t('delete') }}</v-btn>
+      <template v-if="authStore.canEdit('channels')">
+        <v-btn variant="outlined" prepend-icon="mdi-pencil" size="small" @click="editDialog = true">{{ $t('edit') }}</v-btn>
+        <v-btn color="primary" prepend-icon="mdi-sync" size="small" :loading="syncing" @click="doSync">
+          {{ $t('sync_now') || 'Dong bo ngay' }}
+        </v-btn>
+        <v-btn variant="outlined" prepend-icon="mdi-connection" size="small" :loading="testing" @click="doTest">
+          Kiểm tra kết nối
+        </v-btn>
+        <v-btn color="warning" variant="outlined" prepend-icon="mdi-delete-sweep" size="small" @click="confirmPurge = true">
+          Xóa cuộc chat
+        </v-btn>
+        <v-btn color="error" variant="outlined" prepend-icon="mdi-delete" size="small" @click="confirmDelete = true">{{ $t('delete') }}</v-btn>
+      </template>
     </div>
 
     <!-- Channel Info -->
@@ -170,10 +172,12 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useChannelStore } from '../../stores/channels'
+import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const channelStore = useChannelStore()
+const authStore = useAuthStore()
 
 const tenantId = computed(() => route.params.tenantId as string)
 const channelId = computed(() => route.params.channelId as string)
