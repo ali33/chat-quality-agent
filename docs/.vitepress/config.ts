@@ -25,6 +25,7 @@ export default defineConfig({
           { text: 'Cài đặt', link: '/guide/installation' },
           { text: 'Tên miền & SSL', link: '/guide/domain-ssl' },
           { text: 'Thiết lập ban đầu', link: '/guide/initial-setup' },
+          { text: 'Cập nhật phiên bản', link: '/guide/updates' },
         ],
       },
       {

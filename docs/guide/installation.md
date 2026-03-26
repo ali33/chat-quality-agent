@@ -108,39 +108,6 @@ docker compose logs app -f    # Chỉ xem app
 docker compose logs nginx -f  # Chỉ xem nginx
 ```
 
-## Cập nhật phiên bản mới
-
-```bash
-cd /opt/cqa
-docker compose pull
-docker compose up -d
-```
-
-## Tự động cập nhật (tùy chọn)
-
-Thêm [Watchtower](https://containrrr.dev/watchtower/) để VPS tự động pull image mới và restart khi có bản cập nhật.
-
-Chạy lệnh sau trên VPS để cập nhật file docker-compose.yml (đã bao gồm Watchtower + label):
-
-```bash
-cd /opt/cqa
-curl -sfL https://raw.githubusercontent.com/tanviet12/chat-quality-agent/main/docker-compose.hub.yml -o docker-compose.yml
-docker compose up -d
-```
-
-::: info Lệnh trên an toàn
-File `.env` (chứa secrets, database password) không bị ảnh hưởng. Dữ liệu MySQL nằm trong Docker volume, không bị mất.
-:::
-
-Watchtower sẽ kiểm tra Docker Hub mỗi 5 phút. Khi phát hiện image mới, tự pull và restart container **app + nginx** (có label). MySQL không có label nên không bị update, dữ liệu an toàn.
-
-::: tip Xem log Watchtower
-```bash
-docker compose logs watchtower -f
-```
-Thấy dòng `Found new ...` nghĩa là đã tự cập nhật thành công.
-:::
-
 ## Gỡ cài đặt
 
 ```bash
@@ -157,3 +124,4 @@ rm -rf /opt/cqa
 
 - [Tên miền & SSL](/guide/domain-ssl) — Trỏ domain và bật HTTPS
 - [Thiết lập ban đầu](/guide/initial-setup) — Tạo admin, cấu hình AI
+- [Cập nhật phiên bản](/guide/updates) — Cập nhật thủ công hoặc tự động

@@ -37,6 +37,10 @@ Bot sẽ gửi tin nhắn vào group gồm:
 - Danh sách vấn đề phát hiện (nếu có)
 - Link xem chi tiết trên CQA
 
+::: info Cấu hình link
+Link trong thông báo dùng URL từ **Cài đặt > Chung > [URL ứng dụng](/usage/general-settings#url-ung-dung)**. Nếu chưa cấu hình, link sẽ trỏ về localhost.
+:::
+
 ## Email
 
 ### Thiết lập
@@ -80,7 +84,7 @@ Bạn có thể viết template riêng thay vì dùng mặc định:
 | `failed` | Số cuộc chat không đạt |
 | `issues` | Số vấn đề phát hiện |
 | `content` | Nội dung đánh giá chi tiết |
-| `link` | URL xem kết quả trên hệ thống |
+| `link` | URL xem kết quả trên hệ thống (dùng [URL ứng dụng](/usage/general-settings#url-ung-dung) đã cấu hình) |
 
 Cú pháp dùng trong template: bọc tên biến trong dấu ngoặc nhọn kép, ví dụ: `{` `{job_name}` `}`
 
