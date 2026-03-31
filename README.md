@@ -7,6 +7,8 @@ Hệ thống phân tích chất lượng chăm sóc khách hàng bằng AI. Tự
 
 📖 **Hướng dẫn sử dụng chi tiết: [https://tanviet12.github.io/chat-quality-agent/](https://tanviet12.github.io/chat-quality-agent/)**
 
+📄 **Thay đổi so với bản gốc (fork): [UPDATE.md](UPDATE.md)**
+
 ![Dashboard](https://raw.githubusercontent.com/tanviet12/chat-quality-agent/main/docs/public/screenshots/dashboard.png)
 
 ## Tính năng
@@ -41,22 +43,11 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Truy cập: **http://your-server-ip** (hoặc `http://localhost` nếu cài trên máy local) — Lần đầu sẽ hiện trang Setup để tạo tài khoản admin.
+Truy cập: **http://your-server-ip:8080** (hoặc `http://localhost:8080`) — Lần đầu sẽ hiện trang Setup để tạo tài khoản admin. (Cổng có thể đổi qua `SERVER_PORT` trong `.env`.)
 
 ### Bật SSL (tùy chọn)
 
-Thêm vào file `.env`:
-```
-LEGO_DOMAIN=cqa.yourdomain.com
-LEGO_EMAIL=admin@yourdomain.com
-```
-
-Trỏ DNS A record về IP server, sau đó restart:
-```bash
-docker compose restart nginx
-```
-
-SSL sẽ tự động tạo và gia hạn qua Let's Encrypt.
+Trong bản fork này, compose mặc định **không** gồm Nginx. Có thể dùng **Caddy**, **Traefik** hoặc tự triển khai Nginx + Let’s Encrypt phía trước cổng **8080**, hoặc tham khảo image `docker/Dockerfile.nginx` trong repo gốc. Chi tiết khác biệt: [UPDATE.md](UPDATE.md).
 
 ## Công nghệ
 
@@ -64,28 +55,20 @@ SSL sẽ tự động tạo và gia hạn qua Let's Encrypt.
 |-----------|-----------|
 | Backend | Go 1.25+ / Gin |
 | Frontend | Vue 3 + Vuetify 4 + Vite |
-| Database | MySQL 8.0 |
+| Database | SQLite mặc định; tùy chọn MySQL / PostgreSQL / SQL Server — [chi tiết](UPDATE.md) |
 | AI | Claude (Anthropic) / Gemini (Google) |
-| Reverse Proxy | Nginx + Let's Encrypt (Lego) |
-| Deploy | Docker Compose |
+| Reverse Proxy | Tùy chọn (Caddy/Nginx/…) phía ngoài cổng 8080 — [chi tiết](UPDATE.md) |
+| Deploy | Docker Compose (mặc định: một service app) |
 
-## Kiến trúc
+## Kiến trúc (tóm tắt fork)
 
 ```
-                    ┌──────────────┐
-  Internet ────────>│    Nginx     │ Port 80/443
-                    │  (SSL + RP)  │
-                    └──────┬───────┘
-                           │
-                    ┌──────┴───────┐
-                    │   CQA App    │ Port 8080 (internal)
-                    │ Go + Vue SPA │
-                    └──────┬───────┘
-                           │
-                    ┌──────┴───────┐
-                    │   MySQL 8.0  │ Port 3306 (internal)
-                    └──────────────┘
+  Internet ────────> (tùy chọn: reverse proxy SSL) ────────> CQA App :8080
+                                                                    │
+                    SQLite file / hoặc MySQL · Postgres · SQL Server
 ```
+
+Bản gốc dùng Nginx + MySQL trong Compose; bản hiện tại: [UPDATE.md](UPDATE.md).
 
 ## Cấu trúc dự án
 
@@ -95,7 +78,7 @@ chat-quality-agent/
 │   ├── ai/             # AI providers (Claude, Gemini)
 │   ├── api/            # REST API handlers + middleware
 │   ├── channels/       # Zalo OA, Facebook adapters
-│   ├── db/             # GORM models + MySQL
+│   ├── db/             # GORM models + đa driver SQL
 │   ├── engine/         # Analyzer + Sync + Scheduler
 │   ├── mcp/            # MCP server cho Claude
 │   └── notifications/  # Telegram + Email
@@ -120,15 +103,16 @@ chat-quality-agent/
 
 | Biến | Mô tả | Bắt buộc |
 |------|-------|----------|
-| `DB_PASSWORD` | Mật khẩu MySQL | Có |
-| `MYSQL_ROOT_PASSWORD` | Mật khẩu root MySQL | Có |
 | `JWT_SECRET` | Secret cho JWT tokens (min 32 ký tự) | Có |
 | `ENCRYPTION_KEY` | Key 32 bytes cho AES-256-GCM | Có |
-| `LEGO_DOMAIN` | Domain cho SSL tự động | Không |
+| `DB_DRIVER` | `sqlite` / `mysql` / `postgres` / `sqlserver` | Không (mặc định sqlite) |
+| `SQLITE_PATH`, `MESSAGE_DATA_DIR` | File DB và thư mục JSONL tin nhắn theo ngày | Theo `.env.example` |
+| `DB_*` | Host, port, user, password, DB name khi không dùng SQLite | Khi dùng server DB |
+| `LEGO_DOMAIN` | Domain cho SSL tự động (nếu dùng stack Nginx+Lego riêng) | Không |
 | `LEGO_EMAIL` | Email cho Let's Encrypt | Không |
 | `APP_URL` | URL công khai (cho links notification) | Không |
 
-Xem đầy đủ trong [.env.example](.env.example).
+Xem đầy đủ trong [.env.example](.env.example). Khác biệt so với bản gốc: [UPDATE.md](UPDATE.md).
 
 ## Screenshots
 
@@ -145,7 +129,8 @@ Xem đầy đủ trong [.env.example](.env.example).
 
 ## Changelog
 
-Xem lịch sử thay đổi tại: **[CHANGELOG.md](CHANGELOG.md)**
+- **So với repo gốc (upstream):** **[UPDATE.md](UPDATE.md)**
+- **Lịch sử phiên bản theo tag:** **[CHANGELOG.md](CHANGELOG.md)**
 
 ## Tài liệu
 

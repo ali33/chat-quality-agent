@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 )
 
 type Config struct {
@@ -11,12 +13,17 @@ type Config struct {
 	ServerPort string
 	ServerHost string
 
-	// Database
+	// Database — DBDriver is normalized: sqlite | mysql | postgres | sqlserver
+	DBDriver   string
+	SQLitePath string // when DBDriver == sqlite
 	DBHost     string
 	DBPort     string
 	DBUser     string
 	DBPassword string
 	DBName     string
+	DBSSLMode  string // postgres only, e.g. disable, require, verify-full
+
+	MessageDataDir string // daily JSONL files: YYYY-MM-DD.jsonl
 
 	// Security
 	JWTSecret     string
@@ -33,21 +40,70 @@ type Config struct {
 	Env string // "development" | "production"
 }
 
+// NormalizeDBDriver maps env aliases to a canonical driver name.
+func NormalizeDBDriver(raw string) string {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	switch s {
+	case "", "sqlite", "sqlite3":
+		return "sqlite"
+	case "mysql", "mariadb":
+		return "mysql"
+	case "postgres", "postgresql", "pg":
+		return "postgres"
+	case "sqlserver", "mssql", "microsoft":
+		return "sqlserver"
+	default:
+		return ""
+	}
+}
+
 func Load() (*Config, error) {
+	rawDriver := getEnv("DB_DRIVER", "sqlite")
+	norm := NormalizeDBDriver(rawDriver)
+	if norm == "" {
+		return nil, fmt.Errorf("unsupported DB_DRIVER %q: use sqlite, mysql, postgres, or sqlserver", strings.TrimSpace(rawDriver))
+	}
+
 	cfg := &Config{
 		ServerPort:       getEnv("SERVER_PORT", "8080"),
 		ServerHost:       getEnv("SERVER_HOST", "127.0.0.1"),
-		DBHost:           getEnv("DB_HOST", "localhost"),
-		DBPort:           getEnv("DB_PORT", "3306"),
-		DBUser:           getEnv("DB_USER", "cqa"),
+		DBDriver:         norm,
+		SQLitePath:       getEnv("SQLITE_PATH", "data/cqa.db"),
+		DBHost:           getEnv("DB_HOST", ""),
+		DBPort:           getEnv("DB_PORT", ""),
+		DBUser:           getEnv("DB_USER", ""),
 		DBPassword:       getEnv("DB_PASSWORD", ""),
 		DBName:           getEnv("DB_NAME", "cqa"),
+		DBSSLMode:        getEnv("DB_SSLMODE", "disable"),
+		MessageDataDir:   getEnv("MESSAGE_DATA_DIR", "data/messages"),
 		JWTSecret:        getEnv("JWT_SECRET", ""),
 		EncryptionKey:    getEnv("ENCRYPTION_KEY", ""),
 		RateLimitPerIP:   getEnvInt("RATE_LIMIT_PER_IP", 500),
 		RateLimitPerUser: getEnvInt("RATE_LIMIT_PER_USER", 1000),
 		AIMaxTokens:      getEnvInt("AI_MAX_TOKENS", 16384),
 		Env:              getEnv("APP_ENV", "development"),
+	}
+
+	if cfg.DBDriver != "sqlite" {
+		if cfg.DBPort == "" {
+			switch cfg.DBDriver {
+			case "mysql":
+				cfg.DBPort = "3306"
+			case "postgres":
+				cfg.DBPort = "5432"
+			case "sqlserver":
+				cfg.DBPort = "1433"
+			}
+		}
+		if cfg.DBUser == "" {
+			return nil, fmt.Errorf("DB_USER is required when DB_DRIVER=%s", cfg.DBDriver)
+		}
+		if cfg.DBName == "" {
+			return nil, fmt.Errorf("DB_NAME is required when DB_DRIVER=%s", cfg.DBDriver)
+		}
+		if cfg.DBHost == "" {
+			return nil, fmt.Errorf("DB_HOST is required when DB_DRIVER=%s", cfg.DBDriver)
+		}
 	}
 
 	if cfg.JWTSecret == "" {
@@ -62,16 +118,18 @@ func Load() (*Config, error) {
 	if len(cfg.EncryptionKey) != 32 {
 		return nil, fmt.Errorf("ENCRYPTION_KEY must be exactly 32 bytes for AES-256-GCM")
 	}
-	if cfg.DBPassword == "" {
-		return nil, fmt.Errorf("DB_PASSWORD is required")
-	}
 
 	return cfg, nil
 }
 
-func (c *Config) DSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-		c.DBUser, c.DBPassword, c.DBHost, c.DBPort, c.DBName)
+// MessageTimeLocation is used to pick the calendar day for daily message files (env TZ when set).
+func (*Config) MessageTimeLocation() *time.Location {
+	if tz := os.Getenv("TZ"); tz != "" {
+		if loc, err := time.LoadLocation(tz); err == nil {
+			return loc
+		}
+	}
+	return time.Local
 }
 
 func (c *Config) ListenAddr() string {

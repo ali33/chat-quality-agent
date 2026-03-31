@@ -6,7 +6,7 @@ type AppSetting struct {
 	ID             string    `gorm:"type:char(36);primaryKey" json:"id"`
 	TenantID       string    `gorm:"type:char(36);not null;uniqueIndex:idx_setting_tenant_key" json:"tenant_id"`
 	SettingKey     string    `gorm:"type:varchar(255);not null;uniqueIndex:idx_setting_tenant_key" json:"setting_key"`
-	ValueEncrypted []byte    `gorm:"type:varbinary(2048)" json:"-"`
+	ValueEncrypted []byte    `gorm:"type:blob" json:"-"`
 	ValuePlain     string    `gorm:"type:text" json:"value_plain,omitempty"`
 	CreatedAt      time.Time `gorm:"not null" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"not null" json:"updated_at"`

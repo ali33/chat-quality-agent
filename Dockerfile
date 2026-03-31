@@ -7,8 +7,9 @@ RUN --mount=type=cache,target=/root/.npm \
 COPY frontend/ ./
 RUN npm run build
 
-# Stage 2: Build backend
+# Stage 2: Build backend (CGO required for github.com/mattn/go-sqlite3)
 FROM golang:1.25-alpine AS backend-builder
+RUN apk add --no-cache gcc musl-dev
 WORKDIR /app/backend
 COPY backend/go.mod backend/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -17,7 +18,7 @@ COPY backend/ ./
 ARG VERSION=dev
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o /cqa-server .
+    CGO_ENABLED=1 go build -ldflags="-s -w -X main.version=${VERSION}" -o /cqa-server .
 
 # Stage 3: Production image
 FROM alpine:3.21

@@ -17,6 +17,7 @@ import (
 	"github.com/vietbui/chat-quality-agent/db"
 	"github.com/vietbui/chat-quality-agent/db/models"
 	"github.com/vietbui/chat-quality-agent/pkg"
+	"github.com/vietbui/chat-quality-agent/storage/messagedaily"
 )
 
 // SyncEngine handles pulling messages from external channels into the database.
@@ -217,7 +218,13 @@ func (s *SyncEngine) upsertMessage(tenantID, conversationID string, msg channels
 		}
 		if hasLocalPath {
 			attachmentsJSON, _ := json.Marshal(msg.Attachments)
-			db.DB.Model(&existing).Update("attachments", string(attachmentsJSON))
+			if err := db.DB.Model(&existing).Update("attachments", string(attachmentsJSON)).Error; err != nil {
+				return err
+			}
+			if err := db.DB.First(&existing, "id = ?", existing.ID).Error; err != nil {
+				return err
+			}
+			messagedaily.Append(&existing)
 		}
 		return nil
 	}
@@ -239,7 +246,11 @@ func (s *SyncEngine) upsertMessage(tenantID, conversationID string, msg channels
 		RawData:           string(rawDataJSON),
 		CreatedAt:         time.Now(),
 	}
-	return db.DB.Create(&message).Error
+	if err := db.DB.Create(&message).Error; err != nil {
+		return err
+	}
+	messagedaily.Append(&message)
+	return nil
 }
 
 func (s *SyncEngine) updateSyncStatus(channelID, status, errMsg string) error {

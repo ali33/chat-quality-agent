@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net/http"
 
 	"github.com/vietbui/chat-quality-agent/api"
 	"github.com/vietbui/chat-quality-agent/api/handlers"
@@ -9,6 +10,7 @@ import (
 	"github.com/vietbui/chat-quality-agent/config"
 	"github.com/vietbui/chat-quality-agent/db"
 	"github.com/vietbui/chat-quality-agent/engine"
+	"github.com/vietbui/chat-quality-agent/storage/messagedaily"
 )
 
 var version = "dev"
@@ -16,6 +18,8 @@ var version = "dev"
 func main() {
 	log.Printf("Chat Quality Agent %s", version)
 	handlers.AppVersion = version
+
+	config.LoadDotEnv()
 
 	// Load config
 	cfg, err := config.Load()
@@ -26,8 +30,10 @@ func main() {
 	// Initialize JWT
 	middleware.SetJWTSecret(cfg.JWTSecret)
 
+	messagedaily.Init(cfg.MessageDataDir, cfg.MessageTimeLocation())
+
 	// Connect database
-	if err := db.Connect(cfg.DSN(), cfg.IsProduction()); err != nil {
+	if err := db.Connect(cfg); err != nil {
 		log.Fatalf("Failed to connect database: %v", err)
 	}
 	defer db.Close()
@@ -49,9 +55,9 @@ func main() {
 	// Setup router
 	router := api.SetupRouter(cfg)
 
-	// Start server
+	// Start server (net/http; Gin implements http.Handler)
 	log.Printf("CQA server starting on %s (env: %s)", cfg.ListenAddr(), cfg.Env)
-	if err := router.Run(cfg.ListenAddr()); err != nil {
+	if err := http.ListenAndServe(cfg.ListenAddr(), router); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

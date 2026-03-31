@@ -12,6 +12,9 @@ frontend/dist/
 # Go
 backend/cqa-server
 
+# Windows build output (build-frontend.bat / build-backend.bat)
+build/
+
 # IDE
 .vscode/
 .idea/
@@ -23,8 +26,9 @@ backend/cqa-server
 .DS_Store
 Thumbs.db
 
-# Docker volumes
+# Docker volumes / local SQLite + message JSONL
 mysql_data/
+data/
 
 # Docs build
 docs/node_modules/

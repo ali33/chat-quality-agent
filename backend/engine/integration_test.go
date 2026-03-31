@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -16,6 +16,7 @@ import (
 	"github.com/vietbui/chat-quality-agent/db"
 	"github.com/vietbui/chat-quality-agent/db/models"
 	"github.com/vietbui/chat-quality-agent/pkg"
+	"github.com/vietbui/chat-quality-agent/storage/messagedaily"
 )
 
 // SmartMockProvider analyzes the transcript and returns appropriate PASS/FAIL.
@@ -83,15 +84,20 @@ func findSubstr(s, substr string) bool {
 }
 
 func TestIntegrationFullJobFlow(t *testing.T) {
-	// Connect to test DB (uses env vars or defaults to Docker container)
-	dsn := os.Getenv("TEST_DB_DSN")
-	if dsn == "" {
-		dsn = "cqa:cqa_password@tcp(127.0.0.1:3306)/cqa?charset=utf8mb4&parseTime=True&loc=UTC"
+	tmpDir := t.TempDir()
+	t.Setenv("JWT_SECRET", "test-jwt-secret-at-least-32-chars-long")
+	t.Setenv("ENCRYPTION_KEY", "12345678901234567890123456789012")
+	t.Setenv("DB_DRIVER", "sqlite")
+	t.Setenv("SQLITE_PATH", filepath.Join(tmpDir, "integration.db"))
+	t.Setenv("MESSAGE_DATA_DIR", filepath.Join(tmpDir, "messages"))
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("config load: %v", err)
 	}
+	messagedaily.Init(cfg.MessageDataDir, cfg.MessageTimeLocation())
 
-	if err := db.Connect(dsn, false); err != nil {
-		t.Skipf("Skipping integration test - DB not available: %v", err)
-		return
+	if err := db.Connect(cfg); err != nil {
+		t.Fatalf("connect database: %v", err)
 	}
 	defer db.Close()
 
@@ -101,52 +107,173 @@ func TestIntegrationFullJobFlow(t *testing.T) {
 
 	tenantID := "inttest-" + pkg.NewUUID()[:8]
 	channelID := "ch-inttest-" + pkg.NewUUID()[:8]
-
-	// Setup: Use raw SQL to avoid JSON validation issues with GORM
 	now := time.Now()
+	tCreate := now
 	convBadID := "conv-int-bad-" + tenantID[:8]
 	convGoodID := "conv-int-good-" + tenantID[:8]
 	jobID := "job-inttest-" + tenantID[:8]
 	channelIDsJSON, _ := json.Marshal([]string{channelID})
 
-	// Insert via raw SQL to handle JSON columns properly
-	db.DB.Exec(`INSERT INTO tenants (id, name, slug, settings, created_at, updated_at) VALUES (?, ?, ?, '{}', NOW(), NOW())`,
-		tenantID, "Integration Test", "inttest-"+tenantID[:8])
-	defer db.DB.Exec("DELETE FROM tenants WHERE id = ?", tenantID)
+	// Defer order (last registered runs first): scrub job runs → job → messages → … → tenant.
+	defer func() { db.DB.Where("id = ?", tenantID).Delete(&models.Tenant{}) }()
+	defer func() { db.DB.Where("id = ?", channelID).Delete(&models.Channel{}) }()
+	defer func() { db.DB.Where("tenant_id = ?", tenantID).Delete(&models.Conversation{}) }()
+	defer func() { db.DB.Where("tenant_id = ?", tenantID).Delete(&models.Message{}) }()
+	defer func() { db.DB.Where("id = ?", jobID).Delete(&models.Job{}) }()
+	defer func() {
+		var runIDs []string
+		db.DB.Model(&models.JobRun{}).Where("job_id = ?", jobID).Pluck("id", &runIDs)
+		for _, id := range runIDs {
+			db.DB.Where("job_run_id = ?", id).Delete(&models.JobResult{})
+			db.DB.Where("job_run_id = ?", id).Delete(&models.AIUsageLog{})
+		}
+		db.DB.Where("job_id = ?", jobID).Delete(&models.JobRun{})
+	}()
 
-	db.DB.Exec(`INSERT INTO channels (id, tenant_id, channel_type, name, external_id, credentials_encrypted, is_active, metadata, created_at, updated_at) VALUES (?, ?, 'facebook', 'Test Channel', 'fake', X'00', true, '{}', NOW(), NOW())`,
-		channelID, tenantID)
-	defer db.DB.Exec("DELETE FROM channels WHERE id = ?", channelID)
+	tenant := models.Tenant{
+		ID:        tenantID,
+		Name:      "Integration Test",
+		Slug:      "inttest-" + tenantID[:8],
+		Settings:  "{}",
+		CreatedAt: tCreate,
+		UpdatedAt: tCreate,
+	}
+	if err := db.DB.Create(&tenant).Error; err != nil {
+		t.Fatalf("create tenant: %v", err)
+	}
 
-	db.DB.Exec(`INSERT INTO conversations (id, tenant_id, channel_id, external_conversation_id, customer_name, last_message_at, message_count, metadata, created_at, updated_at) VALUES (?, ?, ?, 'ext-bad', 'Khach Xau', ?, 2, '{}', NOW(), NOW())`,
-		convBadID, tenantID, channelID, now)
-	db.DB.Exec(`INSERT INTO conversations (id, tenant_id, channel_id, external_conversation_id, customer_name, last_message_at, message_count, metadata, created_at, updated_at) VALUES (?, ?, ?, 'ext-good', 'Khach Tot', ?, 2, '{}', NOW(), NOW())`,
-		convGoodID, tenantID, channelID, now)
-	defer db.DB.Exec("DELETE FROM conversations WHERE tenant_id = ?", tenantID)
+	ch := models.Channel{
+		ID:                   channelID,
+		TenantID:             tenantID,
+		ChannelType:          "facebook",
+		Name:                 "Test Channel",
+		ExternalID:           "fake",
+		CredentialsEncrypted: []byte{0},
+		IsActive:             true,
+		Metadata:             "{}",
+		CreatedAt:            tCreate,
+		UpdatedAt:            tCreate,
+	}
+	if err := db.DB.Create(&ch).Error; err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
 
-	// Messages
-	db.DB.Exec(`INSERT INTO messages (id, tenant_id, conversation_id, external_message_id, sender_type, sender_name, content, sent_at, created_at) VALUES (?, ?, ?, 'm1', 'customer', 'Khach', 'Xin chao', ?, NOW())`,
-		pkg.NewUUID(), tenantID, convBadID, now.Add(-5*time.Minute))
-	db.DB.Exec(`INSERT INTO messages (id, tenant_id, conversation_id, external_message_id, sender_type, sender_name, content, sent_at, created_at) VALUES (?, ?, ?, 'm2', 'agent', 'NV', 'Gi? Tu xem tren web di', ?, NOW())`,
-		pkg.NewUUID(), tenantID, convBadID, now.Add(-3*time.Minute))
-	db.DB.Exec(`INSERT INTO messages (id, tenant_id, conversation_id, external_message_id, sender_type, sender_name, content, sent_at, created_at) VALUES (?, ?, ?, 'm3', 'customer', 'Khach', 'Chao ban', ?, NOW())`,
-		pkg.NewUUID(), tenantID, convGoodID, now.Add(-5*time.Minute))
-	db.DB.Exec(`INSERT INTO messages (id, tenant_id, conversation_id, external_message_id, sender_type, sender_name, content, sent_at, created_at) VALUES (?, ?, ?, 'm4', 'agent', 'NV', 'Xin chao! Em rat vui duoc ho tro. Anh can gi a?', ?, NOW())`,
-		pkg.NewUUID(), tenantID, convGoodID, now.Add(-3*time.Minute))
-	defer db.DB.Exec("DELETE FROM messages WHERE tenant_id = ?", tenantID)
+	convBad := models.Conversation{
+		ID:                     convBadID,
+		TenantID:               tenantID,
+		ChannelID:              channelID,
+		ExternalConversationID: "ext-bad",
+		CustomerName:           "Khach Xau",
+		LastMessageAt:          &now,
+		MessageCount:           2,
+		Metadata:               "{}",
+		CreatedAt:              tCreate,
+		UpdatedAt:              tCreate,
+	}
+	convGood := models.Conversation{
+		ID:                     convGoodID,
+		TenantID:               tenantID,
+		ChannelID:              channelID,
+		ExternalConversationID: "ext-good",
+		CustomerName:           "Khach Tot",
+		LastMessageAt:          &now,
+		MessageCount:           2,
+		Metadata:               "{}",
+		CreatedAt:              tCreate,
+		UpdatedAt:              tCreate,
+	}
+	if err := db.DB.Create(&convBad).Error; err != nil {
+		t.Fatalf("create conv bad: %v", err)
+	}
+	if err := db.DB.Create(&convGood).Error; err != nil {
+		t.Fatalf("create conv good: %v", err)
+	}
 
-	// Create job
-	db.DB.Exec(`INSERT INTO jobs (id, tenant_id, name, job_type, input_channel_ids, rules_content, rules_config, schedule_type, is_active, outputs, created_at, updated_at) VALUES (?, ?, 'QC Test Job', 'qc_analysis', ?, 'Nhan vien phai chao hoi lich su, tra loi day du.', '[]', 'manual', true, '[]', NOW(), NOW())`,
-		jobID, tenantID, string(channelIDsJSON))
+	msgs := []models.Message{
+		{
+			ID:                pkg.NewUUID(),
+			TenantID:          tenantID,
+			ConversationID:    convBadID,
+			ExternalMessageID: "m1",
+			SenderType:        "customer",
+			SenderName:        "Khach",
+			Content:           "Xin chao",
+			ContentType:       "text",
+			Attachments:       "[]",
+			SentAt:            now.Add(-5 * time.Minute),
+			CreatedAt:         tCreate,
+		},
+		{
+			ID:                pkg.NewUUID(),
+			TenantID:          tenantID,
+			ConversationID:    convBadID,
+			ExternalMessageID: "m2",
+			SenderType:        "agent",
+			SenderName:        "NV",
+			Content:           "Gi? Tu xem tren web di",
+			ContentType:       "text",
+			Attachments:       "[]",
+			SentAt:            now.Add(-3 * time.Minute),
+			CreatedAt:         tCreate,
+		},
+		{
+			ID:                pkg.NewUUID(),
+			TenantID:          tenantID,
+			ConversationID:    convGoodID,
+			ExternalMessageID: "m3",
+			SenderType:        "customer",
+			SenderName:        "Khach",
+			Content:           "Chao ban",
+			ContentType:       "text",
+			Attachments:       "[]",
+			SentAt:            now.Add(-5 * time.Minute),
+			CreatedAt:         tCreate,
+		},
+		{
+			ID:                pkg.NewUUID(),
+			TenantID:          tenantID,
+			ConversationID:    convGoodID,
+			ExternalMessageID: "m4",
+			SenderType:        "agent",
+			SenderName:        "NV",
+			Content:           "Xin chao! Em rat vui duoc ho tro. Anh can gi a?",
+			ContentType:       "text",
+			Attachments:       "[]",
+			SentAt:            now.Add(-3 * time.Minute),
+			CreatedAt:         tCreate,
+		},
+	}
+	for i := range msgs {
+		if err := db.DB.Create(&msgs[i]).Error; err != nil {
+			t.Fatalf("create message: %v", err)
+		}
+	}
 
-	// Load job from DB to get proper model
+	jobRow := models.Job{
+		ID:                jobID,
+		TenantID:          tenantID,
+		Name:              "QC Test Job",
+		JobType:           "qc_analysis",
+		InputChannelIDs:   string(channelIDsJSON),
+		RulesContent:      "Nhan vien phai chao hoi lich su, tra loi day du.",
+		RulesConfig:       "[]",
+		ScheduleType:      "manual",
+		IsActive:          true,
+		Outputs:           "[]",
+		CreatedAt:         tCreate,
+		UpdatedAt:         tCreate,
+	}
+	if err := db.DB.Create(&jobRow).Error; err != nil {
+		t.Fatalf("create job: %v", err)
+	}
+
 	var job models.Job
-	db.DB.First(&job, "id = ?", jobID)
-	defer db.DB.Exec("DELETE FROM jobs WHERE id = ?", jobID)
+	if err := db.DB.First(&job, "id = ?", jobID).Error; err != nil {
+		t.Fatalf("load job: %v", err)
+	}
 
-	// Run with mock provider
-	cfg := &config.Config{}
-	analyzer := NewAnalyzer(cfg)
+	analyzerCfg := &config.Config{}
+	analyzer := NewAnalyzer(analyzerCfg)
 	mockProvider := &SmartMockProvider{}
 
 	run, err := analyzer.RunJobWithProvider(context.Background(), job, 3, mockProvider)
@@ -154,12 +281,10 @@ func TestIntegrationFullJobFlow(t *testing.T) {
 		t.Fatalf("RunJobWithProvider failed: %v", err)
 	}
 
-	// Verify run completed
 	if run.Status != "success" {
 		t.Errorf("expected status 'success', got '%s' (error: %s)", run.Status, run.ErrorMessage)
 	}
 
-	// Parse summary
 	var summary map[string]interface{}
 	json.Unmarshal([]byte(run.Summary), &summary)
 	log.Printf("Run summary: %s", run.Summary)
@@ -178,7 +303,6 @@ func TestIntegrationFullJobFlow(t *testing.T) {
 		t.Errorf("expected at least 1 issue (bad conversation), got %d", issues)
 	}
 
-	// Verify job_results in DB
 	var results []models.JobResult
 	db.DB.Where("job_run_id = ?", run.ID).Find(&results)
 
@@ -200,7 +324,6 @@ func TestIntegrationFullJobFlow(t *testing.T) {
 		t.Errorf("expected at least 1 qc_violation record, got %d", violationCount)
 	}
 
-	// Verify AI usage log
 	var usageLogs []models.AIUsageLog
 	db.DB.Where("job_run_id = ?", run.ID).Find(&usageLogs)
 	if len(usageLogs) != 2 {
@@ -211,11 +334,6 @@ func TestIntegrationFullJobFlow(t *testing.T) {
 			t.Errorf("unexpected token counts: input=%d output=%d", u.InputTokens, u.OutputTokens)
 		}
 	}
-
-	// Cleanup
-	db.DB.Where("job_run_id = ?", run.ID).Delete(&models.JobResult{})
-	db.DB.Where("job_run_id = ?", run.ID).Delete(&models.AIUsageLog{})
-	db.DB.Where("id = ?", run.ID).Delete(&models.JobRun{})
 
 	fmt.Printf("\n✅ Integration test PASSED:\n")
 	fmt.Printf("   Conversations analyzed: %d\n", analyzed)

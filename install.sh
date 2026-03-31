@@ -159,8 +159,6 @@ if [ -f .env ]; then
 else
   JWT_SECRET=$(generate_secret 32)
   ENCRYPTION_KEY=$(generate_secret 16)
-  DB_PASSWORD=$(generate_secret 16)
-  MYSQL_ROOT_PASSWORD=$(generate_secret 16)
 
   cat > .env <<EOF
 # Server
@@ -168,13 +166,11 @@ SERVER_PORT=8080
 SERVER_HOST=0.0.0.0
 APP_ENV=production
 
-# Database
-DB_HOST=db
-DB_PORT=3306
-DB_USER=cqa
-DB_PASSWORD=${DB_PASSWORD}
-DB_NAME=cqa
-MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+# Database: sqlite (default) | mysql | postgres | sqlserver
+DB_DRIVER=sqlite
+SQLITE_PATH=/var/lib/cqa/cqa.db
+MESSAGE_DATA_DIR=/var/lib/cqa/messages
+# Với MySQL/Postgres/SQL Server, đặt DB_DRIVER và DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
 
 # Security
 JWT_SECRET=${JWT_SECRET}

@@ -13,6 +13,7 @@ import (
 	"github.com/vietbui/chat-quality-agent/db"
 	"github.com/vietbui/chat-quality-agent/db/models"
 	"github.com/vietbui/chat-quality-agent/pkg"
+	"github.com/vietbui/chat-quality-agent/storage/messagedaily"
 )
 
 // GetDemoStatus returns whether tenant has data and if it's demo data.
@@ -349,6 +350,9 @@ func ImportDemoData(c *gin.Context) {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
+		}
+		for i := range allMessages {
+			messagedaily.Append(&allMessages[i])
 		}
 	}
 

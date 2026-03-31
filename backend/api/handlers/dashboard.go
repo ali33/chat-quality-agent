@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -83,7 +84,7 @@ func GetDashboard(c *gin.Context) {
 
 	// Cost by day
 	type DayCost struct {
-		Date         string  `json:"date"`
+		Date         string  `gorm:"column:stat_date" json:"date"`
 		TotalCost    float64 `json:"total_cost"`
 		InputTokens  int64   `json:"input_tokens"`
 		OutputTokens int64   `json:"output_tokens"`
@@ -91,29 +92,31 @@ func GetDashboard(c *gin.Context) {
 	}
 	var costByDay []DayCost
 	thirtyDaysAgo := today.Add(-30 * 24 * time.Hour)
+	dCreated := db.DateSQL("created_at")
 	db.DB.Model(&models.AIUsageLog{}).
 		Where("tenant_id = ? AND created_at >= ?", tenantID, thirtyDaysAgo).
-		Select("DATE(created_at) as date, SUM(cost_usd) as total_cost, SUM(input_tokens) as input_tokens, SUM(output_tokens) as output_tokens, COUNT(*) as call_count").
-		Group("DATE(created_at)").
-		Order("date DESC").
+		Select(fmt.Sprintf("%s as stat_date, SUM(cost_usd) as total_cost, SUM(input_tokens) as input_tokens, SUM(output_tokens) as output_tokens, COUNT(*) as call_count", dCreated)).
+		Group(dCreated).
+		Order("stat_date DESC").
 		Scan(&costByDay)
 
 	// Messages by day (with chat count + reply count)
 	type DayMessages struct {
-		Date       string `json:"date"`
+		Date       string `gorm:"column:stat_date" json:"date"`
 		Count      int64  `json:"count"`
 		ChatCount  int64  `json:"chat_count"`  // distinct conversations with customer messages
 		ReplyCount int64  `json:"reply_count"` // agent replies
 	}
 	var messagesByDay []DayMessages
+	dSent := db.DateSQL("sent_at")
 	db.DB.Model(&models.Message{}).
 		Where("tenant_id = ? AND sent_at >= ?", tenantID, thirtyDaysAgo).
-		Select(`DATE(sent_at) as date,
+		Select(fmt.Sprintf(`%s as stat_date,
 			COUNT(*) as count,
 			COUNT(DISTINCT CASE WHEN sender_type = 'customer' THEN conversation_id END) as chat_count,
-			SUM(CASE WHEN sender_type = 'agent' THEN 1 ELSE 0 END) as reply_count`).
-		Group("DATE(sent_at)").
-		Order("date ASC").
+			SUM(CASE WHEN sender_type = 'agent' THEN 1 ELSE 0 END) as reply_count`, dSent)).
+		Group(dSent).
+		Order("stat_date ASC").
 		Scan(&messagesByDay)
 
 	// Exchange rate from tenant settings
