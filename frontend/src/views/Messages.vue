@@ -87,7 +87,7 @@
               />
               <v-select
                 v-model="exportChannelType"
-                :items="[{ title: 'Tất cả kênh', value: '' }, { title: 'Zalo OA', value: 'zalo_oa' }, { title: 'Facebook', value: 'facebook' }]"
+                :items="exportChannelTypeItems"
                 label="Kênh"
                 density="compact"
                 variant="outlined"
@@ -116,9 +116,9 @@
                 @click="selectConversation(conv.id)"
               >
                 <template #prepend>
-                  <v-avatar :color="conv.channel_type === 'facebook' ? 'blue' : 'green'" size="32" class="mr-3">
+                  <v-avatar :color="channelAvatarColor(conv.channel_type)" size="32" class="mr-3">
                     <v-icon color="white" size="16">
-                      {{ conv.channel_type === 'facebook' ? 'mdi-facebook-messenger' : 'mdi-chat' }}
+                      {{ channelAvatarIcon(conv.channel_type) }}
                     </v-icon>
                   </v-avatar>
                 </template>
@@ -127,8 +127,8 @@
                   {{ conv.customer_name || $t('msg_unknown_customer') }}
                 </v-list-item-title>
                 <v-list-item-subtitle class="text-caption">
-                  <v-chip size="x-small" :color="conv.channel_type === 'facebook' ? 'blue' : 'green'" variant="tonal" class="mr-1">
-                    {{ conv.channel_type === 'facebook' ? 'FB' : 'Zalo' }}
+                  <v-chip size="x-small" :color="channelAvatarColor(conv.channel_type)" variant="tonal" class="mr-1">
+                    {{ channelShortLabel(conv.channel_type) }}
                   </v-chip>
                   <v-chip v-if="evaluationMap[conv.id]" size="x-small" :color="evaluationMap[conv.id] === 'PASS' ? 'success' : 'error'" variant="tonal" class="mr-1">
                     {{ evaluationMap[conv.id] === 'PASS' ? 'Đạt' : 'Không đạt' }}
@@ -164,9 +164,9 @@
           <!-- Header -->
           <v-card-title class="d-flex align-center pa-4">
             <v-btn icon="mdi-arrow-left" variant="text" size="small" class="d-md-none mr-2" @click="selectedConvId = null" />
-            <v-avatar :color="selectedConvChannelType === 'facebook' ? 'blue' : 'green'" size="36" class="mr-3">
+            <v-avatar :color="channelAvatarColor(selectedConvChannelType)" size="36" class="mr-3">
               <v-icon color="white" size="18">
-                {{ selectedConvChannelType === 'facebook' ? 'mdi-facebook-messenger' : 'mdi-chat' }}
+                {{ channelAvatarIcon(selectedConvChannelType) }}
               </v-icon>
             </v-avatar>
             <div class="flex-grow-1">
@@ -345,6 +345,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
 import { useConversationStore, type Message } from '../stores/conversations'
 import { useChannelStore } from '../stores/channels'
@@ -352,6 +353,7 @@ import { useAuthStore } from '../stores/auth'
 import api from '../api'
 
 const route = useRoute()
+const { t } = useI18n()
 const { mdAndUp } = useDisplay()
 const conversationStore = useConversationStore()
 const channelStore = useChannelStore()
@@ -531,10 +533,34 @@ const messagesContainer = ref<HTMLElement | null>(null)
 
 const perPage = 9
 
-const channelTypes = [
-  { title: 'Facebook Fanpage', value: 'facebook' },
-  { title: 'Zalo OA', value: 'zalo_oa' },
-]
+const channelTypes = computed(() => [
+  { title: t('channel_facebook'), value: 'facebook' },
+  { title: t('channel_zalo'), value: 'zalo_oa' },
+  { title: t('channel_rest_json'), value: 'rest_json' },
+])
+
+const exportChannelTypeItems = computed(() => [
+  { title: 'Tất cả kênh', value: '' },
+  { title: t('channel_zalo'), value: 'zalo_oa' },
+  { title: t('channel_facebook'), value: 'facebook' },
+  { title: t('channel_rest_json'), value: 'rest_json' },
+])
+
+function channelAvatarColor(ct: string) {
+  if (ct === 'facebook') return 'blue'
+  if (ct === 'rest_json') return 'amber-darken-2'
+  return 'green'
+}
+function channelAvatarIcon(ct: string) {
+  if (ct === 'facebook') return 'mdi-facebook-messenger'
+  if (ct === 'rest_json') return 'mdi-code-json'
+  return 'mdi-chat'
+}
+function channelShortLabel(ct: string) {
+  if (ct === 'facebook') return 'FB'
+  if (ct === 'rest_json') return 'REST'
+  return 'Zalo'
+}
 
 const channelOptions = computed(() => {
   let filtered = channelStore.channels

@@ -1,0 +1,20 @@
+{
+  "conversations": [
+    {
+      "external_id": "conv-1001",
+      "external_user_id": "user-42",
+      "customer_name": "Nguyen Van A",
+      "last_message_at": "2026-03-31T12:30:00+07:00",
+      "metadata": {
+        "source": "crm",
+        "ticket_id": "TK-99"
+      }
+    },
+    {
+      "external_id": "conv-1002",
+      "external_user_id": "user-43",
+      "customer_name": "Tran Thi B",
+      "last_message_at": "2026-03-31T11:00:00Z"
+    }
+  ]
+}

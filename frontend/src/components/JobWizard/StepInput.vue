@@ -12,8 +12,8 @@
         </template>
         <v-list-item-title>{{ ch.name }}</v-list-item-title>
         <v-list-item-subtitle>
-          <v-chip size="x-small" :color="ch.channel_type === 'zalo_oa' ? 'blue' : 'indigo'" variant="tonal" class="mr-1">
-            {{ ch.channel_type === 'zalo_oa' ? 'Zalo OA' : 'Facebook' }}
+          <v-chip size="x-small" :color="channelTypeColor(ch.channel_type)" variant="tonal" class="mr-1">
+            {{ channelTypeLabel(ch.channel_type) }}
           </v-chip>
           <v-chip size="x-small" :color="ch.is_active ? 'success' : 'grey'" variant="tonal">
             {{ ch.is_active ? $t('active') : $t('inactive') }}
@@ -28,11 +28,24 @@
 import { onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useChannelStore } from '../../stores/channels'
 
 const form = defineModel<Record<string, any>>('form', { required: true })
 const route = useRoute()
+const { t } = useI18n()
 const channelStore = useChannelStore()
+
+function channelTypeLabel(ct: string) {
+  if (ct === 'facebook') return t('channel_facebook')
+  if (ct === 'rest_json') return t('channel_rest_json')
+  return t('channel_zalo')
+}
+function channelTypeColor(ct: string) {
+  if (ct === 'facebook') return 'indigo'
+  if (ct === 'rest_json') return 'amber-darken-2'
+  return 'blue'
+}
 const { channels } = storeToRefs(channelStore)
 
 onMounted(() => {

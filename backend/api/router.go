@@ -3,6 +3,7 @@ package api
 import (
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -24,19 +25,37 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
-	// Serve static frontend files in production
+	// Serve static frontend files in production (paths relative to exe: see config.StaticDir)
 	if cfg.IsProduction() {
-		r.Static("/assets", "./static/assets")
-		r.Static("/guides", "./static/guides")
-		r.StaticFile("/favicon.png", "./static/favicon.png")
-		r.StaticFile("/", "./static/index.html")
+		root := config.StaticDir()
+		assetsDir := filepath.Join(root, "assets")
+		guidesDir := filepath.Join(root, "guides")
+		indexHTML := filepath.Join(root, "index.html")
+		faviconPNG := filepath.Join(root, "favicon.png")
+
+		r.Static("/assets", assetsDir)
+		if st, err := os.Stat(guidesDir); err == nil && st.IsDir() {
+			r.Static("/guides", guidesDir)
+		}
+		if _, err := os.Stat(faviconPNG); err == nil {
+			r.StaticFile("/favicon.png", faviconPNG)
+		}
+		// Browsers often request /favicon.ico even when HTML links /favicon.png
+		r.GET("/favicon.ico", func(c *gin.Context) {
+			if _, err := os.Stat(faviconPNG); err == nil {
+				c.File(faviconPNG)
+				return
+			}
+			c.Status(http.StatusNoContent)
+		})
+		r.StaticFile("/", indexHTML)
 		r.NoRoute(func(c *gin.Context) {
-			// SPA fallback: serve index.html for non-API routes
-			if len(c.Request.URL.Path) > 4 && c.Request.URL.Path[:4] == "/api" {
+			path := c.Request.URL.Path
+			if strings.HasPrefix(path, "/api") {
 				c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
 				return
 			}
-			c.File("./static/index.html")
+			c.File(indexHTML)
 		})
 	}
 

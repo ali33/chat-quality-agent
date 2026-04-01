@@ -57,6 +57,9 @@ export default {
   channel_type: 'Channel Type',
   channel_zalo: 'Zalo OA',
   channel_facebook: 'Facebook Fanpage',
+  channel_rest_json: 'REST API (JSON)',
+  channels_empty_hint:
+    'Connect Zalo OA, Facebook Fanpage, or a REST API (JSON) source to sync messages and run AI quality analysis.',
   last_sync: 'Last Synced',
   sync_status: 'Sync Status',
   test_connection: 'Test Connection',

@@ -10,9 +10,9 @@ import (
 
 	"github.com/vietbui/chat-quality-agent/config"
 	"github.com/vietbui/chat-quality-agent/db/models"
+	"github.com/glebarez/sqlite"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

@@ -85,11 +85,11 @@
         <v-card class="pa-4">
           <div class="d-flex justify-space-between align-center">
             <div>
-              <div class="text-body-2 text-grey">{{ ch.channel_type === 'facebook' ? 'Facebook' : 'Zalo OA' }}</div>
+              <div class="text-body-2 text-grey">{{ channelTypeLabel(ch.channel_type) }}</div>
               <div class="text-h5 font-weight-bold mt-1">{{ ch.count }}</div>
             </div>
-            <v-icon :color="ch.channel_type === 'facebook' ? 'blue' : 'green'" size="32" class="opacity-50">
-              {{ ch.channel_type === 'facebook' ? 'mdi-facebook-messenger' : 'mdi-chat' }}
+            <v-icon :color="channelTypeColor(ch.channel_type)" size="32" class="opacity-50">
+              {{ channelTypeIcon(ch.channel_type) }}
             </v-icon>
           </div>
         </v-card>
@@ -247,6 +247,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Line } from 'vue-chartjs'
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Filler, Legend } from 'chart.js'
 import api from '../api'
@@ -255,7 +256,24 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const tenantId = computed(() => route.params.tenantId as string)
+
+function channelTypeLabel(ct: string) {
+  if (ct === 'facebook') return t('channel_facebook')
+  if (ct === 'rest_json') return t('channel_rest_json')
+  return t('channel_zalo')
+}
+function channelTypeColor(ct: string) {
+  if (ct === 'facebook') return 'blue'
+  if (ct === 'rest_json') return 'amber-darken-2'
+  return 'green'
+}
+function channelTypeIcon(ct: string) {
+  if (ct === 'facebook') return 'mdi-facebook-messenger'
+  if (ct === 'rest_json') return 'mdi-code-json'
+  return 'mdi-chat'
+}
 
 const stats = ref([
   { label: 'total_conversations', value: 0, icon: 'mdi-message-text', color: 'primary' },

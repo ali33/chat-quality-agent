@@ -1,0 +1,32 @@
+{
+  "messages": [
+    {
+      "external_id": "msg-5001",
+      "sender_type": "customer",
+      "sender_name": "Nguyen Van A",
+      "content": "Chào shop, mình muốn hỏi giá sản phẩm X",
+      "content_type": "text",
+      "sent_at": "2026-03-31T12:25:00+07:00",
+      "attachments": [],
+      "raw_data": {
+        "crm_message_id": "5001"
+      }
+    },
+    {
+      "external_id": "msg-5002",
+      "sender_type": "agent",
+      "sender_name": "CSKH Mai",
+      "content": "Chào anh, em gửi anh bảng giá ạ.",
+      "content_type": "text",
+      "sent_at": "2026-03-31T12:28:00+07:00",
+      "attachments": [
+        {
+          "type": "file",
+          "url": "https://crm.example.com/files/price.pdf",
+          "name": "price.pdf"
+        }
+      ],
+      "raw_data": {}
+    }
+  ]
+}

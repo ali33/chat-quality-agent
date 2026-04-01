@@ -29,8 +29,8 @@
       <v-row>
         <v-col cols="6" sm="3">
           <div class="text-caption text-grey">Loại kênh</div>
-          <v-chip size="small" :color="channel.channel_type === 'facebook' ? 'blue' : 'green'" variant="tonal">
-            {{ channel.channel_type === 'facebook' ? 'Facebook' : 'Zalo OA' }}
+          <v-chip size="small" :color="channelTypeColor(channel.channel_type)" variant="tonal">
+            {{ channelTypeLabel(channel.channel_type) }}
           </v-chip>
         </v-col>
         <v-col cols="6" sm="3">
@@ -171,13 +171,26 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useChannelStore } from '../../stores/channels'
 import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const channelStore = useChannelStore()
 const authStore = useAuthStore()
+
+function channelTypeLabel(ct: string) {
+  if (ct === 'facebook') return t('channel_facebook')
+  if (ct === 'rest_json') return t('channel_rest_json')
+  return t('channel_zalo')
+}
+function channelTypeColor(ct: string) {
+  if (ct === 'facebook') return 'indigo'
+  if (ct === 'rest_json') return 'amber-darken-2'
+  return 'green'
+}
 
 const tenantId = computed(() => route.params.tenantId as string)
 const channelId = computed(() => route.params.channelId as string)

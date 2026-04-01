@@ -22,8 +22,8 @@ if errorlevel 1 (
   exit /b 1
 )
 
-rem SQLite (mattn/go-sqlite3) can CGO: can gcc tren PATH (MSYS2 MinGW-w64, TDM-GCC, v.v.)
-set "CGO_ENABLED=1"
+rem SQLite dung github.com/glebarez/sqlite (pure Go, khong can gcc). Tat CGO de build tren Windows khong MSYS2.
+set "CGO_ENABLED=0"
 
 echo [INFO] Build Go -^> "%EXE%"
 pushd "%BACKEND%"
@@ -45,8 +45,18 @@ if not "%ERR%"=="0" (
   exit /b 1
 )
 
+set "STATIC_OUT=%OUTDIR%\static"
+if exist "%ROOT%frontend\dist\index.html" (
+  echo [INFO] Copy frontend dist -^> "%STATIC_OUT%"
+  if not exist "%STATIC_OUT%" mkdir "%STATIC_OUT%"
+  xcopy /E /I /Y "%ROOT%frontend\dist\*" "%STATIC_OUT%\" >nul
+) else (
+  echo [CANH BAO] Khong co "%ROOT%frontend\dist\index.html". Chay: cd frontend ^&^& npm run build
+  echo            Sau do chay lai build-backend, hoac copy dist vao "%STATIC_OUT%" thu cong.
+)
+
 echo.
 echo [XONG] File: %EXE%
-echo        Chay production: dat APP_ENV=production, cd /d build, chay cqa-server.exe
-echo        (static phai o build\static neu da build frontend)
+echo        Chay production: APP_ENV=production — static nam canh exe: build\static
+echo        Co the chay exe tu bat ky thu muc; hoac set STATIC_DIR tro toi thu muc chua index.html
 exit /b 0

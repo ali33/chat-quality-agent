@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/vietbui/chat-quality-agent/api"
 	"github.com/vietbui/chat-quality-agent/api/handlers"
@@ -54,6 +56,13 @@ func main() {
 
 	// Setup router
 	router := api.SetupRouter(cfg)
+
+	if cfg.IsProduction() {
+		idx := filepath.Join(config.StaticDir(), "index.html")
+		if _, err := os.Stat(idx); err != nil {
+			log.Printf("WARNING: production UI missing (%s). Copy frontend dist into that folder or set STATIC_DIR. GET / will return 404 until then.", idx)
+		}
+	}
 
 	// Start server (net/http; Gin implements http.Handler)
 	log.Printf("CQA server starting on %s (env: %s)", cfg.ListenAddr(), cfg.Env)

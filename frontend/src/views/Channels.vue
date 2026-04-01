@@ -11,16 +11,19 @@
       <v-col v-for="ch in channelStore.channels" :key="ch.id" cols="12" sm="6" md="4">
         <v-card class="pa-4" style="cursor: pointer" @click="router.push(`/${tenantId}/channels/${ch.id}`)">
           <div class="d-flex align-center mb-3">
-            <v-icon :color="ch.channel_type === 'zalo_oa' ? 'blue' : 'indigo'" size="32" class="mr-3">
-              {{ ch.channel_type === 'zalo_oa' ? 'mdi-message-text' : 'mdi-facebook-messenger' }}
+            <v-icon :color="channelIconColor(ch)" size="32" class="mr-3">
+              {{ channelIcon(ch) }}
             </v-icon>
             <div class="flex-grow-1">
               <div class="text-subtitle-1 font-weight-bold">{{ ch.name }}</div>
-              <v-chip size="x-small" :color="ch.channel_type === 'zalo_oa' ? 'blue' : 'indigo'" variant="tonal">
-                {{ ch.channel_type === 'zalo_oa' ? $t('channel_zalo') : $t('channel_facebook') }}
+              <v-chip size="x-small" :color="channelIconColor(ch)" variant="tonal">
+                {{ channelLabel(ch) }}
               </v-chip>
               <div v-if="ch.channel_type === 'zalo_oa' && ch.external_id" class="text-caption text-grey mt-1" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                 OA: {{ ch.external_id }}
+              </div>
+              <div v-else-if="ch.channel_type === 'rest_json' && ch.external_id" class="text-caption text-grey mt-1" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                external_id: {{ ch.external_id }}
               </div>
             </div>
             <div class="text-right">
@@ -51,7 +54,7 @@
             <v-btn size="small" variant="tonal" color="primary" prepend-icon="mdi-sync" :loading="syncing === ch.id" @click="syncNow(ch.id)">
               {{ $t('sync_now') }}
             </v-btn>
-            <v-btn v-if="ch.last_sync_status === 'error'" size="small" variant="tonal" color="warning" prepend-icon="mdi-link-variant" :loading="reauthing === ch.id" @click="reauthChannel(ch.id)">
+            <v-btn v-if="ch.last_sync_status === 'error' && ch.channel_type !== 'rest_json'" size="small" variant="tonal" color="warning" prepend-icon="mdi-link-variant" :loading="reauthing === ch.id" @click="reauthChannel(ch.id)">
               Kết nối lại
             </v-btn>
             <v-btn size="small" variant="text" color="primary" @click="testConn(ch.id)">
@@ -68,8 +71,8 @@
     <div v-if="!channelStore.channels.length" class="text-center mt-12 pa-8">
       <v-icon size="64" color="grey-lighten-1" class="mb-4">mdi-chat-plus</v-icon>
       <div class="text-h6 text-grey-darken-1 mb-2">Chưa có kênh chat nào</div>
-      <div class="text-body-2 text-grey mb-4" style="max-width: 500px; margin: 0 auto;">
-        Kết nối kênh chat Facebook, Zalo OA để hệ thống đồng bộ tin nhắn và AI phân tích chất lượng CSKH.
+      <div class="text-body-2 text-grey mb-4" style="max-width: 520px; margin: 0 auto;">
+        {{ $t('channels_empty_hint') }}
       </div>
       <v-btn color="primary" prepend-icon="mdi-plus" @click="showDialog = true">Kết nối kênh</v-btn>
     </div>
@@ -80,10 +83,24 @@
         <v-card-title>{{ $t('connect_channel') }}</v-card-title>
         <v-select
           v-model="newChannel.channel_type"
+          :items="connectChannelTypeOptions"
+          item-title="title"
+          item-value="value"
           :label="$t('channel_type')"
-          :items="[{ title: $t('channel_zalo'), value: 'zalo_oa' }, { title: $t('channel_facebook'), value: 'facebook' }]"
+          variant="outlined"
+          density="comfortable"
+          :prepend-inner-icon="connectChannelTypeSelectedIcon"
+          :menu-props="{ maxHeight: 280 }"
           class="mb-3"
-        />
+        >
+          <template #item="{ props: itemProps, item }">
+            <v-list-item v-bind="itemProps" class="px-2">
+              <template #prepend>
+                <v-icon :icon="item.icon" :color="item.color" size="22" class="mr-1" />
+              </template>
+            </v-list-item>
+          </template>
+        </v-select>
         <v-text-field v-model="newChannel.name" :label="$t('channel_name')" class="mb-3" />
 
         <!-- Zalo OA -->
@@ -97,6 +114,23 @@
             <v-icon size="14" class="mr-1">mdi-information-outline</v-icon>
             Nếu ứng dụng Zalo có nhiều OA, bước tiếp theo sẽ mở trang Zalo để chọn OA — hãy chọn <b>đúng OA</b> tương ứng với kênh này.
           </div>
+        </template>
+
+        <!-- REST JSON -->
+        <template v-else-if="newChannel.channel_type === 'rest_json'">
+          <v-alert type="info" variant="tonal" density="compact" class="mb-3">
+            Định dạng credentials và response: thư mục <code>backend/channels/examples/</code> trong repo (credentials + conversations + messages).
+          </v-alert>
+          <v-textarea
+            v-model="restJsonCreds"
+            label="Credentials (JSON)"
+            rows="14"
+            class="mb-2"
+            variant="outlined"
+            auto-grow
+            hint="base_url, list_conversations_path, messages_path_template (có {conversation_id}), external_id, headers..."
+            persistent-hint
+          />
         </template>
 
         <!-- Facebook -->
@@ -144,6 +178,15 @@
             {{ $t('zalo_authorize') }}
           </v-btn>
           <v-btn
+            v-else-if="newChannel.channel_type === 'rest_json'"
+            color="amber-darken-2"
+            :loading="creating"
+            :disabled="!newChannel.name || !restJsonCreds.trim()"
+            @click="createRestJson"
+          >
+            {{ $t('create') }}
+          </v-btn>
+          <v-btn
             v-else
             color="indigo"
             :loading="creating"
@@ -189,7 +232,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useChannelStore } from '../stores/channels'
@@ -200,6 +243,12 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const channelStore = useChannelStore()
+
+const connectChannelTypeOptions = computed(() => [
+  { value: 'zalo_oa' as const, title: t('channel_zalo'), icon: 'mdi-message-text', color: 'blue' },
+  { value: 'facebook' as const, title: t('channel_facebook'), icon: 'mdi-facebook-messenger', color: 'indigo' },
+  { value: 'rest_json' as const, title: t('channel_rest_json'), icon: 'mdi-code-json', color: 'amber-darken-2' },
+])
 const authStore = useAuthStore()
 const tenantId = computed(() => route.params.tenantId as string)
 
@@ -218,6 +267,48 @@ const newChannel = reactive({
   sync_files: false,
   sync_interval: 15,
 })
+
+const connectChannelTypeSelectedIcon = computed(() => {
+  const opt = connectChannelTypeOptions.value.find((o) => o.value === newChannel.channel_type)
+  return opt?.icon ?? 'mdi-connection'
+})
+
+const DEFAULT_REST_JSON_CREDS = `{
+  "base_url": "https://crm.example.com",
+  "list_conversations_path": "/api/v1/cqa/conversations",
+  "messages_path_template": "/api/v1/cqa/conversations/{conversation_id}/messages",
+  "external_id": "my-api-source-001",
+  "headers": {
+    "Authorization": "Bearer YOUR_TOKEN"
+  },
+  "timeout_seconds": 60
+}`
+const restJsonCreds = ref('')
+
+watch(
+  () => newChannel.channel_type,
+  (t) => {
+    if (t === 'rest_json' && !restJsonCreds.value.trim()) {
+      restJsonCreds.value = DEFAULT_REST_JSON_CREDS
+    }
+  },
+)
+
+function channelIcon(ch: { channel_type: string }) {
+  if (ch.channel_type === 'facebook') return 'mdi-facebook-messenger'
+  if (ch.channel_type === 'rest_json') return 'mdi-api'
+  return 'mdi-message-text'
+}
+function channelIconColor(ch: { channel_type: string }) {
+  if (ch.channel_type === 'facebook') return 'indigo'
+  if (ch.channel_type === 'rest_json') return 'amber-darken-2'
+  return 'blue'
+}
+function channelLabel(ch: { channel_type: string }) {
+  if (ch.channel_type === 'facebook') return t('channel_facebook')
+  if (ch.channel_type === 'rest_json') return t('channel_rest_json')
+  return t('channel_zalo')
+}
 
 onMounted(() => {
   channelStore.fetchChannels(tenantId.value)
@@ -295,6 +386,35 @@ async function createFacebook() {
     showDialog.value = false
     newChannel.name = ''
     newChannel.creds = {}
+    showSnack(t('success'), 'success')
+    await channelStore.fetchChannels(tenantId.value)
+  } catch {
+    showSnack(t('error'), 'error')
+  } finally {
+    creating.value = false
+  }
+}
+
+async function createRestJson() {
+  let credentials: Record<string, unknown>
+  try {
+    credentials = JSON.parse(restJsonCreds.value) as Record<string, unknown>
+  } catch {
+    showSnack('Credentials JSON không hợp lệ', 'error')
+    return
+  }
+  creating.value = true
+  try {
+    await channelStore.createChannel(tenantId.value, {
+      channel_type: 'rest_json',
+      name: newChannel.name,
+      credentials,
+      metadata: JSON.stringify({ sync_files: newChannel.sync_files, sync_interval: newChannel.sync_interval }),
+    })
+    showDialog.value = false
+    newChannel.name = ''
+    newChannel.creds = {}
+    restJsonCreds.value = ''
     showSnack(t('success'), 'success')
     await channelStore.fetchChannels(tenantId.value)
   } catch {

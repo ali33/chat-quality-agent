@@ -57,6 +57,9 @@ export default {
   channel_type: 'Loại kênh',
   channel_zalo: 'Zalo OA',
   channel_facebook: 'Facebook Fanpage',
+  channel_rest_json: 'REST API (JSON)',
+  channels_empty_hint:
+    'Kết nối kênh Zalo OA, Facebook Fanpage hoặc REST API (JSON) để hệ thống đồng bộ tin nhắn và AI phân tích chất lượng CSKH.',
   last_sync: 'Đồng bộ lần cuối',
   sync_status: 'Trạng thái đồng bộ',
   test_connection: 'Kiểm tra kết nối',

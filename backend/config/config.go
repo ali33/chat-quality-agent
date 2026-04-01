@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -138,6 +139,23 @@ func (c *Config) ListenAddr() string {
 
 func (c *Config) IsProduction() bool {
 	return c.Env == "production"
+}
+
+// StaticDir is the folder with production UI (index.html, assets/, …).
+// Set STATIC_DIR to override; otherwise it is <directory of executable>/static
+// so the server works no matter the current working directory.
+func StaticDir() string {
+	if s := strings.TrimSpace(os.Getenv("STATIC_DIR")); s != "" {
+		return filepath.Clean(s)
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return "static"
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	return filepath.Join(filepath.Dir(exe), "static")
 }
 
 func getEnv(key, fallback string) string {

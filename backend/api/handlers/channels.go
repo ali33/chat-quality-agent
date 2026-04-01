@@ -19,6 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/vietbui/chat-quality-agent/api/middleware"
+	"github.com/vietbui/chat-quality-agent/channels"
 	"github.com/vietbui/chat-quality-agent/config"
 	"github.com/vietbui/chat-quality-agent/db"
 	"github.com/vietbui/chat-quality-agent/db/models"
@@ -30,7 +31,7 @@ import (
 var httpClientWithTimeout = &http.Client{Timeout: 30 * time.Second}
 
 type CreateChannelRequest struct {
-	ChannelType string          `json:"channel_type" binding:"required,oneof=zalo_oa facebook"`
+	ChannelType string          `json:"channel_type" binding:"required,oneof=zalo_oa facebook rest_json"`
 	Name        string          `json:"name" binding:"required,min=2,max=255"`
 	Credentials json.RawMessage `json:"credentials" binding:"required"` // JSON: varies by type
 	Metadata    string          `json:"metadata"`
@@ -136,6 +137,19 @@ func CreateChannel(c *gin.Context) {
 				return
 			}
 		}
+	}
+
+	if req.ChannelType == "rest_json" {
+		var rc channels.RestJSONCredentials
+		if err := json.Unmarshal(req.Credentials, &rc); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid rest_json credentials JSON"})
+			return
+		}
+		if _, err := channels.NewRestJSONAdapter(rc); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		externalID = rc.ExternalID
 	}
 
 	now := time.Now()
@@ -317,7 +331,17 @@ func TestChannelConnection(c *gin.Context) {
 		return
 	}
 
-	_ = credBytes // TODO: use with channel adapter HealthCheck
+	adapter, err := channels.NewAdapter(channel.ChannelType, credBytes)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "status": "failed"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	if err := adapter.HealthCheck(ctx); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error(), "status": "failed"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "connection_successful"})
 }

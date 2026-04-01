@@ -26,6 +26,17 @@ func TestNewAdapterFacebook(t *testing.T) {
 	}
 }
 
+func TestNewAdapterRestJSON(t *testing.T) {
+	creds := `{"base_url":"https://example.com","list_conversations_path":"/c","messages_path_template":"/c/{conversation_id}/m","external_id":"src-1"}`
+	adapter, err := NewAdapter("rest_json", []byte(creds))
+	if err != nil {
+		t.Fatalf("NewAdapter rest_json: %v", err)
+	}
+	if adapter == nil {
+		t.Fatal("adapter nil")
+	}
+}
+
 func TestNewAdapterUnsupported(t *testing.T) {
 	_, err := NewAdapter("whatsapp", []byte("{}"))
 	if err == nil {
